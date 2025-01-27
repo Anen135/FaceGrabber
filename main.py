@@ -5,51 +5,37 @@ import random
 from tkinter import ttk
 from tkinter import messagebox
 from PIL import Image, ImageTk
-import threading
 
 # Initialize MediaPipe Face Detection
 mp_face_detection = mp.solutions.face_detection
+face_detection = mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5)
 
 class FaceApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Face Detection App")
-        self.cap = None
+
+        # Создаем временное окно загрузки
+        self.loading_window = tk.Toplevel(root)
+        self.loading_window.title("Загрузка...")
+        self.loading_label = ttk.Label(self.loading_window, text="Инициализация приложения...")
+        self.loading_label.pack(padx=20, pady=20)
+        self.loading_window.geometry("300x100")
+        self.loading_window.grab_set()  # Блокируем взаимодействие с основным окном
+
+        # Инициализация основных компонентов
+        self.initialize_components()
+
+        # Закрываем окно загрузки после завершения инициализации
+        self.loading_window.destroy()
+
+    def initialize_components(self):
+        self.cap = cv2.VideoCapture(0)  # Webcam capture
         self.running = False
         self.last_frame = None
         self.last_detections = None
         self.captured_faces = []  # Store captured faces as images
 
-        # Create a loading window
-        self.loading_window = tk.Toplevel(root)
-        self.loading_window.title("Loading...")
-        self.loading_label = ttk.Label(self.loading_window, text="Initializing, please wait...")
-        self.loading_label.pack(padx=20, pady=20)
-        self.loading_window.geometry("300x100")
-        self.loading_window.transient(root)  # Make it a transient window of the main window
-        self.loading_window.grab_set()  # Make it modal
-
-        # Start initialization in a separate thread
-        self.initialization_thread = threading.Thread(target=self.initialize_resources)
-        self.initialization_thread.start()
-
-        # Check initialization status periodically
-        self.root.after(100, self.check_initialization)
-
-    def initialize_resources(self):
-        # Initialize resources here
-        self.face_detection = mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5)
-        self.cap = cv2.VideoCapture(0)  # Webcam capture
-
-    def check_initialization(self):
-        if self.initialization_thread.is_alive():
-            self.root.after(100, self.check_initialization)
-        else:
-            self.loading_window.destroy()
-            self.create_ui()
-            self.update_frame()
-
-    def create_ui(self):
         # Create UI elements
         # Video stream area
         self.video_label = ttk.Label(self.root)
@@ -102,8 +88,9 @@ class FaceApp:
         self.root.bind('<w>', lambda event: self.clear_captured_faces()) # Press 'w' to clear captured faces
         self.root.bind('<Escape>', lambda event: self.on_closing())      # Press 'Escape' to close the window
 
-        # Show welcome message
-        self.root.after(100, lambda: messagebox.showinfo("Welcome", "Добро пожаловать в программу Face Detection!", icon=messagebox.INFO, detail="Рекомендуемое расстояние использования: 5 метров."))
+        # Start the video stream
+        self.update_frame()
+        self.root.after(100, lambda: messagebox.showinfo( "Welcome", "Добро пожаловать в программу Face Detection!", icon=messagebox.INFO, detail="Рекомендуемое расстояние использования: 5 метров." ))
 
     def start_detection(self):
         self.running = True
@@ -158,40 +145,38 @@ class FaceApp:
             self.clear_button.config(state=tk.NORMAL)
 
     def update_frame(self):
-        if self.cap is not None:
-            success, frame = self.cap.read()
-            if success:
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                self.last_frame = frame  # Save the last frame
-                self.last_detections = None
+        success, frame = self.cap.read()
+        if success:
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            self.last_frame = frame  # Save the last frame
+            self.last_detections = None
 
-                if self.running:
-                    result = self.face_detection.process(frame_rgb)
-                    if result.detections:
-                        self.last_detections = result.detections
-                        for detection in result.detections:
-                            bboxC = detection.location_data.relative_bounding_box
-                            ih, iw, _ = frame.shape
-                            xmin, ymin, w, h = int(bboxC.xmin * iw), int(bboxC.ymin * ih), int(bboxC.width * iw), int(bboxC.height * ih)
-                            cv2.rectangle(frame, (xmin, ymin), (xmin + w, ymin + h), (255, 0, 0), 2)
+            if self.running:
+                result = face_detection.process(frame_rgb)
+                if result.detections:
+                    self.last_detections = result.detections
+                    for detection in result.detections:
+                        bboxC = detection.location_data.relative_bounding_box
+                        ih, iw, _ = frame.shape
+                        xmin, ymin, w, h = int(bboxC.xmin * iw), int(bboxC.ymin * ih), int(bboxC.width * iw), int(bboxC.height * ih)
+                        cv2.rectangle(frame, (xmin, ymin), (xmin + w, ymin + h), (255, 0, 0), 2)
 
-                # Resize frame to fit video_label size
-                label_width = self.video_label.winfo_width()
-                label_height = self.video_label.winfo_height()
-                if label_width > 0 and label_height > 0:
-                    frame = cv2.resize(frame, (label_width, label_height))
+            # Resize frame to fit video_label size
+            label_width = self.video_label.winfo_width()
+            label_height = self.video_label.winfo_height()
+            if label_width > 0 and label_height > 0:
+                frame = cv2.resize(frame, (label_width, label_height))
 
-                # Convert frame for Tkinter
-                img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-                imgtk = ImageTk.PhotoImage(image=img)
-                self.video_label.imgtk = imgtk
-                self.video_label.configure(image=imgtk)
+            # Convert frame for Tkinter
+            img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            imgtk = ImageTk.PhotoImage(image=img)
+            self.video_label.imgtk = imgtk
+            self.video_label.configure(image=imgtk)
 
         self.root.after(10, self.update_frame)
 
     def on_closing(self):
-        if self.cap is not None:
-            self.cap.release()
+        self.cap.release()
         cv2.destroyAllWindows()
         self.root.destroy()
 
