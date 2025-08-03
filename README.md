@@ -1,8 +1,11 @@
-# modules:
-1. mediapipe.
-2. cv2
-3. PIL
+# install
+pip install -r requirements.txt
 
+# how compile it?
+pyinstaller   --onefile   --paths=venv/Lib/site-packages   --collect-all=cv2   --hidden-import=cv2   --add-binary="venv/Lib/site-packages/cv2/opencv_videoio_ffmpeg4110_64.dll;cv2"   --icon="facegraber.ico"   --add-data="venv/Lib/site-packages/mediapipe/modules/face_detection/face_detection_full_range_cpu.binarypb;mediapipe/modules/face_detection"   main.py
 
-how compile it?
-![image](https://github.com/user-attachments/assets/d9338a72-5184-4c01-9fa8-7a9d4e6d9d24)
+## примечание:
+со временем библитеки могут обновится, тогда нужно будет заменить аргументы --add-binary и --add-data на актуальные
+
+# run
+/dist/main.exe
