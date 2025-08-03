@@ -1,1 +1,5 @@
+build/
+dist/
+mediapipe/
+main.spec
 venv/
